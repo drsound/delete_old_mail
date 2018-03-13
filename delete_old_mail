@@ -1,0 +1,37 @@
+#!/usr/bin/env ruby
+
+#https://github.com/drsound/delete_old_mail
+#Alessandro Zarrilli <alessandro@zarrilli.net>
+
+require 'yaml'
+require 'net/pop'
+require 'mail'
+
+CONFIGURATION_FILE = '/etc/delete_old_mail.conf'
+
+begin
+  accounts = YAML.load_file(CONFIGURATION_FILE)
+rescue
+  puts "Error loading configuration file #{CONFIGURATION_FILE}"
+  exit 1
+end
+
+now = DateTime.now
+
+accounts.each.with_index(1) do |account, i|
+  puts "Processing #{account['user']} on #{account['host']} (#{i}/#{accounts.size})"
+  pop = Net::POP3.new(account['host'])
+  pop.enable_ssl if account['ssl']
+  pop.start(account['user'], account['password'])
+  total = deleted = 0
+  pop.mails.each do |mail|
+    date = Mail.new(mail.header).date
+    if (now - date).to_i > account['days']
+      mail.delete
+      deleted += 1
+    end
+    total += 1
+  end
+  puts "#{total} mails total, #{deleted} mails deleted"
+  pop.finish
+end
